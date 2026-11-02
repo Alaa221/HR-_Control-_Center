@@ -1,0 +1,160 @@
+{% extends 'base.html' %}
+{% from '_m.html' import icon with context %}
+
+{# صف بيانات. القيمة الفاضية تظهر "—" زي الـ DAX. raw=True لو القيمة HTML جاهز #}
+{% macro kv(label, value, raw=False) -%}
+<div class="pf-kv"><span class="pf-k">{{ t(label) }}</span>
+  <span class="pf-v" dir="auto">{% if value is none or value == '' %}—{% elif raw %}{{ value }}{% else %}{{ value }}{% endif %}</span></div>
+{%- endmacro %}
+{% macro pl(cls, text) -%}<span class="pf-pl {{ cls }}">{{ text }}</span>{%- endmacro %}
+
+{# كارت من غير مصدر بيانات: رمادي ومعطّل #}
+{% macro off_card(title, labels) %}
+<div class="pf-card off"><h4>{{ t(title) }}<span>{{ t('no_source_short') }}</span></h4>
+  {% for l in labels %}{{ kv(l, none) }}{% endfor %}</div>
+{% endmacro %}
+
+{# ✓ / ✕ للعهد #}
+{% macro ob(label, v) -%}
+<div class="pf-kv"><span class="pf-k">{{ t(label) }}</span><span class="pf-v">{{ pl('pg' if v == 1 else 'pc', '✓' if v == 1 else '✕') }}</span></div>
+{%- endmacro %}
+
+{% set pcls = {'Completed':'pg','Ending Soon':'pw','On Probation':'pn'}.get(e.prob_status,'pn') %}
+{% set ccls = {'Active':'pg','Expiring Soon':'pw','Expired':'pc','No Contract':'pc'}.get(e.contract_status,'pn') %}
+{% set pct = (e.file_pct * 100)|round|int %}
+{% set pcol = '#10B981' if pct >= 100 else ('#F59E0B' if pct >= 80 else '#EF4444') %}
+
+{% block title %}{{ e.name }}{% endblock %}
+{% block h1 %}{{ t('profile') }}{% endblock %}
+{% block sub %}{{ e.name }} · {{ e.code }}{% endblock %}
+{% block back %}<a class="back" href="{{ url_for('profile_search') }}" title="{{ t('back') }}">{{ icon('arrow-left', 18) }}</a>{% endblock %}
+
+{% block content %}
+<div class="pf">
+  {# ───── الهيدر ───── #}
+  <header class="pf-hd">
+    <div class="pf-hl">
+      <div class="pf-av">{{ (e.name or '?')[0]|upper }}</div>
+      <div class="pf-id">
+        <div class="pf-name" dir="auto">{{ e.name }}</div>
+        <div class="pf-sub"><bdi>{{ t('code_lbl') }} {{ e.code }}</bdi><i></i><bdi>{{ e.job or '—' }}</bdi><i></i><bdi>{{ e.location or '—' }}</bdi></div>
+      </div>
+    </div>
+    <div class="pf-hr">
+      <div class="pf-chip"><b>{{ tenure_txt or '—' }}</b><span>{{ t('tenure') }}</span></div>
+      <div class="pf-chip"><b>{{ pct }}%</b><span>{{ t('documents') }}</span></div>
+      <div class="pf-chip"><b>{{ alerts_|length }}</b><span>{{ t('alerts') }}</span></div>
+      <div class="pf-st {{ '' if e.active else 'sx' }}">{{ t('st_active') if e.active else t('st_inactive') }}</div>
+    </div>
+  </header>
+
+  <div class="pf-cols">
+    {# ═════ العمود 1 ═════ #}
+    <div class="pf-col">
+      <div class="pf-card"><h4>{{ t('sec_work') }}</h4>
+        {{ kv('sector', e.sector) }}{{ kv('management', e.management) }}{{ kv('department', e.department) }}
+        {{ kv('job', e.job) }}{{ kv('manager', e.manager) }}{{ kv('location', e.location) }}
+        {{ kv('archive_code', e.archive_code) }}{{ kv('archive_loc', e.archive) }}
+      </div>
+
+      <div class="pf-card"><h4>{{ t('sec_employment') }}</h4>
+        {{ kv('hire_type', e.hire_type|tv('hire_type') if e.hire_type else none) }}
+        {{ kv('hire_date', e.hire_date|pdate) }}
+        {{ kv('tenure', tenure_txt) }}
+        {{ kv('prob_start', e.hire_date|pdate) }}
+        {% if e.prob_end is not none %}
+          {% set rem = (' (' ~ days_txt(e.prob_days) ~ ')') if e.prob_days is not none and e.prob_days >= 0 else '' %}
+          {{ kv('prob_end', (e.prob_end|pdate ~ ' ' ~ pl(pcls, e.prob_status|tv('prob') ~ rem)), true) }}
+        {% else %}{{ kv('prob_end', none) }}{% endif %}
+        {{ kv('resign_date', e.resign_date|pdate) }}
+      </div>
+
+      <div class="pf-card"><h4>{{ t('sec_contract') }}</h4>
+        {{ kv('first_contract', e.contract_first|tv('contract_type') if e.contract_first else none) }}
+        {{ kv('cur_contract', e.contract_cur|tv('contract_type') if e.contract_cur else none) }}
+        {{ kv('contract_end', e.contract_end|pdate) }}
+        {% if e.contract_days is not none %}
+          {% set crem = (' (' ~ days_txt(e.contract_days) ~ ')') if e.contract_days >= 0 else ((' (منذ ' ~ (e.contract_days|abs|int) ~ ' يوم)') if L == 'ar' else (' (' ~ (e.contract_days|abs|int) ~ 'd ago)')) %}
+        {% else %}{% set crem = '' %}{% endif %}
+        {{ kv('contract_status', pl(ccls, e.contract_status|tv('contract') ~ crem), true) }}
+      </div>
+
+      <div class="pf-card"><h4>{{ t('sec_leaves') }}<a class="pf-leave-link" href="{{ url_for('leaves', code=e.code) }}">{{ t('leave_manage') }}</a></h4>
+        {{ kv('leave_year', leave_balance.current_year) }}
+        {{ kv('leave_total_balance', leave_balance.total_balance|num(2)) }}
+        {{ kv('leave_casual_balance', leave_balance.casual_balance|num(2)) }}
+        {{ kv('leave_annual_balance', leave_balance.annual_balance|num(2)) }}
+        {% if not leave_balance.available %}<div class="pf-al aw">{{ t('leave_waiting', days=leave_balance.waiting_days) }}</div>{% endif %}
+      </div>
+    </div>
+
+    {# ═════ العمود 2 ═════ #}
+    <div class="pf-col">
+      <div class="pf-card"><h4>{{ t('sec_insurance') }}</h4>
+        {{ kv('ins_status', pl('pg' if e.insured else 'pc', t('ins_yes') if e.insured else t('ins_no_lbl')), true) }}
+        {{ kv('ins_no', e.ins_no) }}{{ kv('ins_start', e.ins_start|pdate) }}{{ kv('ins_end', e.ins_end|pdate) }}
+        {{ kv('ins_years', (e.ins_years|num(1) ~ ' ' ~ t('years')) if e.ins_years is not none else none) }}
+        {{ kv('ins_branch', e.ins_branch) }}{{ kv('employer_no', e.employer_no) }}
+        {% if e.ins_office %}{{ kv('ins_office', e.ins_office) }}{% endif %}
+        {{ kv('ins_reason', e.ins_reason) }}
+      </div>
+
+      <div class="pf-card"><h4>{{ t('sec_personal') }}</h4>
+        {{ kv('national_id', e.nid) }}{{ kv('nid_date', e.nid_date|pdate) }}{{ kv('birth_date', e.birth_date|pdate) }}
+        {{ kv('age', (e.age|num(1) ~ ' ' ~ t('years')) if e.age is not none else none) }}
+        {{ kv('gender', e.gender|tv('gender') if e.gender else none) }}
+        {{ kv('religion', e.religion|tv('religion') if e.religion else none) }}
+        {{ kv('marital', e.marital) }}{{ kv('military_status', e.military_status) }}{{ kv('military_end', e.military_end|pdate) }}
+        {{ kv('phone', e.phone) }}{{ kv('business_no', e.business_no) }}{{ kv('email', e.email) }}
+        {{ kv('address', e.address) }}{{ kv('area', e.area) }}{{ kv('government', e.government) }}{{ kv('notes', e.notes) }}
+      </div>
+
+      <div class="pf-card"><h4>{{ t('sec_eval') }}</h4>
+        {{ kv('eval_grade', e.eval_grade|gnum) }}{{ kv('file_score', e.file_score|gnum) }}
+        {% set fbar %}<div class="pf-mbw"><div class="pf-mb"><div style="width:{{ [pct,100]|min }}%"></div></div><b>{{ pct }}%</b></div>{% endset %}
+        {{ kv('percentage', fbar, true) }}
+        {{ kv('inspector', e.inspector) }}
+      </div>
+    </div>
+
+    {# ═════ العمود 3 ═════ #}
+    <div class="pf-col">
+      <div class="pf-card"><h4>{{ t('documents') }}<span>{{ pr }} / {{ tt }}</span></h4>
+        {% for k, ok in docs %}
+        <div class="pf-dc"><span class="pf-dd {{ 'dk' if ok else 'dn' }}">{{ icon('check' if ok else 'x', 12) }}</span><span>{{ k|tv('doc') }}</span></div>
+        {% endfor %}
+        <div class="pf-dc"><span class="pf-dd {{ 'dk' if e.doc_s1 else 'dn' }}">{{ icon('check' if e.doc_s1 else 'x', 12) }}</span><span>S1 / س1</span></div>
+        <div class="pf-cp"><span>{{ t('doc_completion') }}</span><b>{{ pct }}%</b></div>
+        <div class="pf-pbar"><div style="width:{{ [pct,100]|min }}%;background:{{ pcol }}"></div></div>
+      </div>
+
+      <div class="pf-card"><h4>{{ t('sec_attendance') }}</h4>
+        {{ kv('payroll', e.payroll) }}{{ kv('work_group', e.work_group) }}{{ kv('hours', e.hours) }}
+        {{ kv('overtime', e.overtime) }}{{ kv('schedule', e.schedule) }}{{ kv('fingerprint', e.fingerprint) }}
+        {{ kv('att_proc', e.att_proc) }}{{ kv('att_notes', e.att_notes) }}{{ kv('send_result', e.send_result) }}
+      </div>
+
+      {% if has_pen %}
+      <div class="pf-card"><h4>{{ t('sec_penalties') }}</h4>
+        {{ kv('investigations', (e.investigations|gnum) or '0') }}{{ kv('penalties_n', (e.penalties_n|gnum) or '0') }}
+      </div>
+      {% else %}{{ off_card('sec_penalties', ['investigations', 'penalties_n']) }}{% endif %}
+
+      {% if has_obl %}
+      <div class="pf-card"><h4>{{ t('sec_obligations') }}</h4>
+        {{ ob('ob_line', e.has_line) }}{{ ob('ob_set', e.has_set) }}{{ ob('ob_desktop', e.has_desktop) }}{{ ob('ob_laptop', e.has_laptop) }}
+      </div>
+      {% else %}{{ off_card('sec_obligations', ['ob_line', 'ob_set', 'ob_desktop', 'ob_laptop']) }}{% endif %}
+
+      <div class="pf-card"><h4>{{ t('alerts') }}<span>{{ n_crit }} {{ t('critical') }}</span></h4>
+        {% for a in alerts_ %}
+          <div class="pf-al {{ {'Critical':'ac','Warning':'aw'}.get(a.severity,'ai') }}">
+            <b>{{ a.severity|tv('severity') }}</b><span>{{ a.type|tv('type') }}: {{ alert_msg(a, e.missing_docs) }}</span></div>
+        {% else %}
+          <div class="pf-al ao">{{ t('no_alerts_emp') }}</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

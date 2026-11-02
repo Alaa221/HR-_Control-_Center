@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+{% from '_m.html' import icon, pill, dropdown with context %}
+
+{% block title %}{{ t(title) }}{% endblock %}
+{% block h1 %}{{ t(title) }}{% endblock %}
+{% block sub %}{% if subtitle %}{{ t(subtitle) if subtitle != 'details' else t('details') }}{% endif %}{% endblock %}
+{% block back %}
+  {% if back %}<a class="back" href="{{ back }}" title="{{ t('back') }}">{{ icon('arrow-left', 18) }}</a>{% endif %}
+{% endblock %}
+
+{% macro cell(col, r) -%}
+  {%- if col == 'code' %}<span class="mono">{{ r.code }}</span>
+  {%- elif col == 'name' %}<a class="lnk" href="{{ url_for('employee', code=r.code) }}">{{ r.name }}</a>
+  {%- elif col in ('hire_date', 'prob_end', 'contract_end') %}<span class="nw">{{ r[col]|fdate }}</span>
+  {%- elif col == 'prob_status' %}{{ pill('prob', r.prob_status) }}
+  {%- elif col == 'contract_status' %}{{ pill('contract', r.contract_status) }}
+  {%- elif col == 'contract_type' %}{{ r.contract_cur|tv('contract_type') }}
+  {%- elif col == 'file_pct' %}<div class="mini"><div class="track"><i style="width:{{ (r.file_pct*100)|round }}%"></i></div><span>{{ (r.file_pct*100)|round|int }}%</span></div>
+  {%- elif col == 'age' or col == 'tenure' %}{{ r[col]|num(1) }}
+  {%- elif col == 'missing_txt' %}{% if r.missing_docs %}<span class="muted">{{ r.missing_docs|map('tv','doc')|join('، ' if L=='ar' else ', ') }}</span>{% else %}<span class="pill ok">{{ t('none_missing') }}</span>{% endif %}
+  {%- else %}{{ r[col] if r[col] is not none else '—' }}{% endif -%}
+{%- endmacro %}
+
+{% block content %}
+{% if extra %}
+<div class="statrow">
+  {% for c in extra %}
+  <{{ 'a' if c.href else 'div' }} class="stat {{ 'clickable' if c.href }}" style="--c:{{ c.color }}" {% if c.href %}href="{{ c.href }}"{% endif %}>
+    <span>{% if c.kind == 'raw' %}{{ t(c.label) }}{% else %}{{ c.label|tv(c.kind) }}{% endif %}</span>
+    <strong>{{ c.value|num if c.value is number else c.value }}</strong>
+  </{{ 'a' if c.href else 'div' }}>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if summary %}
+<div class="statrow">
+  {% for s in summary %}
+  <div class="stat" style="--c:#B71C1C"><span>{{ t(s.label) }}</span><strong>{{ s.value|num(s.dec or (1 if s.raw else 0)) }}</strong></div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if breakdowns %}
+<div class="panel"><div class="cols3">
+  {% for bd in breakdowns %}
+  <div class="barcard">
+    <div class="barcard-head"><h3>{{ t(bd.title) }}</h3></div>
+    <div class="barlist short">
+      {% for b in bd['items'] %}
+        {% set href = b.href if b.href else (request.path ~ '?' ~ (args_without(b.param, **{b.param: b.label})|urlencode) if b.param else none) %}
+        <{{ 'a' if href else 'div' }} class="bar" {% if href %}href="{{ href }}"{% endif %}>
+          <div class="bar-row"><span>{{ b.label|tv(b.kind) }}</span><b>{{ b.count|num }}</b></div>
+          <div class="track"><i style="width:{{ b.pct }}%"></i></div>
+        </{{ 'a' if href else 'div' }}>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div></div>
+{% endif %}
+
+<section class="panel table-panel">
+  <form class="filters" method="get">
+    {% for k, v in request.args.items() if k not in ('q','sector','location','page','export') %}
+      <input type="hidden" name="{{ k }}" value="{{ v }}">
+    {% endfor %}
+    <label class="search">{{ icon('search', 16) }}<input name="q" value="{{ request.args.get('q','') }}" placeholder="{{ t('search') }}"></label>
+    {% if filters %}
+    {{ dropdown(t('sector'), 'sector', opts.sector) }}
+    {{ dropdown(t('location'), 'location', opts.location) }}
+    {% endif %}
+    <button class="btn primary" type="submit">{{ t('apply') }}</button>
+    <a class="btn" href="{{ request.path }}">{{ t('reset') }}</a>
+    <span class="grow"></span>
+    <span class="muted">{{ total|num }} {{ t('results') }}</span>
+    <a class="btn" href="{{ request.full_path.rstrip('?') }}{{ '&' if request.args else '?' }}export=csv">{{ icon('download', 16) }}{{ t('export') }}</a>
+  </form>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr>{% for c in cols %}<th>{{ t(c if c != 'missing_txt' else 'missing') }}</th>{% endfor %}</tr></thead>
+      <tbody>
+        {% for r in rows %}
+        <tr onclick="location.href='{{ url_for('employee', code=r.code) }}'">
+          {% for c in cols %}<td>{{ cell(c, r) }}</td>{% endfor %}
+        </tr>
+        {% else %}
+        <tr><td colspan="{{ cols|length }}" class="empty">{{ t('no_results') }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if pages > 1 %}
+  <div class="pager">
+    {% if page > 1 %}<a class="btn" href="?{{ args_without('page')|urlencode }}&page={{ page-1 }}">{{ t('prev') }}</a>{% endif %}
+    <span class="muted">{{ t('page') }} {{ page }} {{ t('of') }} {{ pages }}</span>
+    {% if page < pages %}<a class="btn" href="?{{ args_without('page')|urlencode }}&page={{ page+1 }}">{{ t('next') }}</a>{% endif %}
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

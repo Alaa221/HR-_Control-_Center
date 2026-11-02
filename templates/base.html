@@ -1,0 +1,124 @@
+{% from '_m.html' import icon, pill, langswitch with context %}
+<!doctype html>
+<html lang="{{ L }}" dir="{{ DIR }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ t('title_dash') }}{% endblock %} · GPS HR</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ asset('css/style.css') }}">
+</head>
+<body class="lang-{{ L }}">
+<div class="shell">
+  <aside class="side">
+    <a class="brand" href="{{ url_for('dashboard') }}">
+      <img src="{{ asset('img/logo.svg') }}" alt="GPS">
+      <span>{{ t('app') }}</span>
+    </a>
+    <nav>
+      {% for ep, label, ic in nav %}
+        <a class="nav-item {{ 'active' if request.endpoint == ep or (ep=='profile_search' and request.endpoint=='employee') or (ep=='dashboard' and request.endpoint in ('kpi','org')) }}" href="{{ url_for(ep) }}">
+          {{ icon(ic, 18) }}<span>{{ t(label) }}</span>
+          {% if ep == 'alerts' and badge %}<b class="count">{{ badge }}</b>{% endif %}
+        </a>
+      {% endfor %}
+    </nav>
+    <div class="side-foot">{{ t('data_as_of') }} <bdi dir="ltr">{{ today }}</bdi></div>
+  </aside>
+
+  <main class="main">
+    <header class="top">
+      <div class="top-title">
+        {% block back %}{% endblock %}
+        <div>
+          <h1>{% block h1 %}{{ t('title_dash') }}{% endblock %}</h1>
+          <p>{% block sub %}{{ t('sub_dash') }}{% endblock %}</p>
+        </div>
+      </div>
+      <div class="top-actions">
+        <details class="alert-wrap" id="alertDet">
+          <summary class="alert-pill {{ 'has' if badge }}" aria-label="{{ t('alerts') }}">
+            <span class="bell">{{ icon('bell', 16) }}</span><span>{{ t('alerts') }}</span><b>{{ badge }}</b>
+          </summary>
+          <div class="alert-pop" role="dialog" aria-label="{{ t('hr_alerts') }}">
+            <div class="ap-head">
+              <span class="ap-hico">{{ icon('bell', 20) }}</span>
+              <div class="ap-ht">
+                <strong>{{ t('hr_alerts') }}</strong>
+                <small>{{ t('ap_need', n=badge) }}</small>
+              </div>
+              <button type="button" class="ap-x" data-close-alerts aria-label="Close">{{ icon('x', 16) }}</button>
+            </div>
+            <div class="ap-chips">
+              <span class="ap-sev bad"><i></i>{{ n_critical }} {{ t('critical') }}</span>
+              <span class="ap-sev warn"><i></i>{{ n_warning }} {{ t('warning_lbl') }}</span>
+            </div>
+            <div class="ap-body">
+            <div class="ap-groups">
+              {% for g in alert_groups %}
+              <a class="ap-g {{ g.sev }}" href="{{ g.href }}">
+                <span class="ap-gi">{{ icon(g.icon, 17) }}</span>
+                <span class="ap-gt"><b>{{ g.n|num }}</b> {{ t(g.key) }}</span>
+                {{ icon('chevron', 14) }}
+              </a>
+              {% else %}<p class="ap-empty">{{ t('no_alerts') }}</p>{% endfor %}
+            </div>
+            {% set crit = top_alerts|selectattr('severity','equalto','Critical')|list %}
+            {% if crit %}
+            <div class="ap-sub">{{ t('ap_critical_now') }}</div>
+            <div class="ap-list">
+              {% for a in crit[:4] %}
+              <a class="ap-item {{ 'c' if a.severity == 'Critical' else 'w' }}" href="{{ url_for('employee', code=a.code) }}">
+                <span class="ap-dot"></span>
+                <div><b>{{ a.name }}</b><small>{{ a.type|tv('type') }}: {{ alert_msg(a) }}</small></div>
+                {{ icon('chevron', 14) }}
+              </a>
+              {% endfor %}
+            </div>
+            {% endif %}
+            </div>
+            <a class="ap-foot" href="{{ url_for('alerts') }}">{{ t('view_alerts') }} {{ icon('arrow-right', 15) }}</a>
+          </div>
+        </details>
+        {{ langswitch() }}
+      </div>
+    </header>
+    {% block content %}{% endblock %}
+  </main>
+</div>
+{% if alert_groups %}
+{% set tot = (n_critical + n_warning) or 1 %}
+<aside class="a-toast" id="alertToast" role="status" aria-live="polite" hidden>
+  <i class="at-bar"></i>
+  <div class="at-head">
+    <div class="at-ring" title="{{ n_critical }} {{ t('critical') }} · {{ n_warning }} {{ t('warning_lbl') }}">
+      <svg viewBox="0 0 44 44" aria-hidden="true">
+        <circle class="r-bg" cx="22" cy="22" r="16" pathLength="100"/>
+        <circle class="r-w" cx="22" cy="22" r="16" pathLength="100" style="--len:{{ (100 * (n_critical + n_warning) / tot)|round(1) }}"/>
+        <circle class="r-c" cx="22" cy="22" r="16" pathLength="100" style="--len:{{ (100 * n_critical / tot)|round(1) }}"/>
+      </svg>
+      <b>{{ badge }}</b>
+    </div>
+    <div class="at-ht">
+      <strong>{{ t('hr_alerts') }}</strong>
+      <small>{{ t('ap_need', n=badge) }}</small>
+      <span class="at-chips"><em class="c">{{ n_critical }} {{ t('critical') }}</em><em class="w">{{ n_warning }} {{ t('warning_lbl') }}</em></span>
+    </div>
+    <button type="button" class="at-x" data-close-toast aria-label="Close">{{ icon('x', 15) }}</button>
+  </div>
+  <div class="at-list">
+    {% for g in alert_groups %}
+    <a class="at-row {{ g.sev }}" href="{{ g.href }}" style="--i:{{ loop.index0 }}">
+      <span class="at-n">{{ g.n|num }}</span>
+      <span class="at-t">{{ t(g.key) }}</span>
+      <span class="at-gi">{{ icon(g.icon, 15) }}</span>
+    </a>
+    {% endfor %}
+  </div>
+  <a class="at-foot" href="{{ url_for('alerts') }}"><span>{{ t('view_alerts') }}</span>{{ icon('arrow-right', 15) }}</a>
+</aside>
+{% endif %}
+<script src="{{ asset('js/app.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,168 @@
+{% extends 'base.html' %}
+{% from '_m.html' import icon with context %}
+{% block title %}{{ t('rep_all_summary') }}{% endblock %}
+{% block h1 %}{{ t('rep_all_summary') }}{% endblock %}
+{% block sub %}{{ t('sum_sub') }}{% endblock %}
+{% block back %}
+  <a class="back" href="{{ url_for('attendance_report', dept=dept, manager=manager, start=start, end=end) }}" title="{{ t('sum_back') }}">{{ icon('arrow-left', 18) }}</a>
+{% endblock %}
+
+{# خلية رقم: الصفر يظهر باهت عشان القيم الفعلية هي اللي تبان #}
+{% macro n(v, hours=false, bad=false, good=false, dec=false) -%}
+  {%- set zero = (v == 0) -%}
+  <td data-v="{{ v }}" class="n{{ ' z' if zero }}{{ ' bad' if (bad and not zero) }}{{ ' good' if (good and not zero) }}">
+    {%- if hours %}{{ hm(v) or '0:00' }}{% elif dec %}{{ '%.2f'|format(v) }}{% else %}{{ '%g'|format(v) }}{% endif -%}
+  </td>
+{%- endmacro %}
+
+{% block content %}
+<div class="att-bar noprint">
+  <a class="btn" href="{{ url_for('attendance_report', dept=dept, manager=manager, start=start, end=end) }}">{{ icon('file', 15) }}<span>{{ t('sum_back') }}</span></a>
+  <a class="btn" href="{{ url_for('attendance') }}">{{ icon('fingerprint', 15) }}<span>{{ t('attendance') }}</span></a>
+  {% if demo %}<span class="att-demo">{{ t('att_demo') }}</span>{% endif %}
+  <span class="grow"></span>
+  {% if summary %}
+  <a class="btn" href="{{ url_for('attendance_summary_xlsx', dept=dept, manager=manager, start=start, end=end) }}">{{ icon('download', 15) }}<span>{{ t('rep_xlsx') }}</span></a>
+  <button class="btn" type="button" onclick="window.print()">{{ icon('file', 15) }}<span>{{ t('rep_print') }}</span></button>
+  {% endif %}
+</div>
+
+<form class="panel att-filters noprint" id="sumForm" method="get" action="{{ url_for('attendance_summary') }}">
+  <label class="fld">{{ icon('building', 15) }}
+    <select name="manager" id="sumManager">
+      <option value="">{{ t('rep_all_managers') }}</option>
+      {% for item in managers %}<option value="{{ item }}" {{ 'selected' if manager == item }}>{{ item }}</option>{% endfor %}
+    </select>
+  </label>
+  <label class="fld">{{ icon('building', 15) }}
+    <select name="dept" id="sumDept">
+      <option value="">{{ t('rep_all_depts') }}</option>
+      {% for d in departments %}<option value="{{ d }}" {{ 'selected' if dept == d }}>{{ d }}</option>{% endfor %}
+    </select>
+  </label>
+  <label class="fld dt">{{ icon('calendar', 15) }}<span>{{ t('rep_from') }}</span><input type="date" name="start" value="{{ start }}" required></label>
+  <label class="fld dt">{{ icon('calendar', 15) }}<span>{{ t('rep_to') }}</span><input type="date" name="end" value="{{ end }}" required></label>
+  <button class="btn primary" type="submit">{{ icon('search', 15) }}<span>{{ t('rep_show') }}</span></button>
+</form>
+<script>
+  document.getElementById('sumDept').addEventListener('change', e => e.target.form.requestSubmit());
+  document.getElementById('sumManager').addEventListener('change', e => e.target.form.requestSubmit());
+</script>
+
+{% if err %}
+<div class="att-err"><div class="ae-ico">{{ icon('shield-alert', 26) }}</div><div><strong>{{ err }}</strong></div></div>
+{% elif summary %}
+{% set T = summary.totals %}
+{% set selected_group = manager ~ (' / ' if manager and dept else '') ~ dept %}
+
+<section class="sm sm-all" aria-labelledby="sum-title">
+  <header class="sm-head">
+    <span class="sm-tag">{{ t('rep_all_summary') }}</span>
+    <h2 id="sum-title">{{ selected_group or t('rep_all_depts') }}</h2>
+    <p><bdi dir="ltr">{{ start }} → {{ end }}</bdi> · {{ summary.employees }} {{ t('rep_emp_count_short') }}</p>
+  </header>
+
+
+  <div class="sumsheet-wrap" dir="rtl">
+    <table class="sumsheet" dir="rtl" aria-label="{{ t('rep_all_summary') }}">
+      <colgroup>
+        <col class="c-code"><col class="c-name">
+        {% for w in (92, 92, 84, 84, 78, 100, 78, 110, 80, 78, 78, 78, 78) %}<col style="width:{{ w }}px">{% endfor %}
+        <col class="c-admin">
+      </colgroup>
+      <thead>
+        <tr class="h1">
+          <th class="g-person sticky c1" rowspan="3">{{ t('rep_code') }}<button type="button" class="af noprint" data-col="0" aria-label="sort"></button></th>
+          <th class="g-person sticky c2" rowspan="3">{{ t('rep_name') }}<button type="button" class="af noprint" data-col="1" aria-label="sort"></button></th>
+          <th class="g-title" colspan="13">{{ t('rep_hr_notes') }}</th>
+          <th class="g-admin" rowspan="3">{{ t('rep_admin_notes') }}<button type="button" class="af noprint" data-col="15" aria-label="sort"></button></th>
+        </tr>
+        <tr class="h2">
+          <th class="g-work" colspan="4">{{ t('rep_work_hours') }}</th>
+          <th class="g-att" colspan="4">{{ t('rep_attendance_notes') }}</th>
+          <th class="g-ot" colspan="3">{{ t('rep_overtime') }}</th>
+          <th class="g-ded" colspan="2">{{ t('rep_total_deduction') }}</th>
+        </tr>
+        <tr class="h3">
+          <th class="g-work">{{ t('rep_official_hours') }}<button type="button" class="af noprint" data-col="2" aria-label="sort"></button></th>
+          <th class="g-work">{{ t('rep_actual_hours') }}<button type="button" class="af noprint" data-col="3" aria-label="sort"></button></th>
+          <th class="g-work">{{ t('rep_official_days') }}<button type="button" class="af noprint" data-col="4" aria-label="sort"></button></th>
+          <th class="g-work">{{ t('rep_actual_days') }}<button type="button" class="af noprint" data-col="5" aria-label="sort"></button></th>
+          <th class="g-att">{{ t('rep_absent_days') }}<button type="button" class="af noprint" data-col="6" aria-label="sort"></button></th>
+          <th class="g-att">{{ t('rep_leave_days') }}<button type="button" class="af noprint" data-col="7" aria-label="sort"></button></th>
+          <th class="g-att">{{ t('rep_missing_punches') }}<button type="button" class="af noprint" data-col="8" aria-label="sort"></button></th>
+          <th class="g-att">{{ t('rep_late_hours') }}<button type="button" class="af noprint" data-col="9" aria-label="sort"></button></th>
+          <th class="g-ot">{{ t('rep_overtime_hours') }}<button type="button" class="af noprint" data-col="10" aria-label="sort"></button></th>
+          <th class="g-ot">{{ t('rep_weekly_rest') }}<button type="button" class="af noprint" data-col="11" aria-label="sort"></button></th>
+          <th class="g-ot">{{ t('rep_holidays') }}<button type="button" class="af noprint" data-col="12" aria-label="sort"></button></th>
+          <th class="g-ded">{{ t('rep_deduction_hours') }}<button type="button" class="af noprint" data-col="13" aria-label="sort"></button></th>
+          <th class="g-ded">{{ t('rep_deduction_days') }}<button type="button" class="af noprint" data-col="14" aria-label="sort"></button></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in summary.rows %}
+        <tr>
+          <td class="code sticky c1{{ ' dup' if r.dup }}">{{ r.code }}</td>
+          <td class="name sticky c2"><a href="{{ url_for('attendance_report', code=r.code, start=start, end=end) }}" title="{{ t('sum_open_emp') }}">{{ r.name }}</a></td>
+          {% if r.official is not none %}{{ n(r.official, hours=true) }}{% else %}<td class="n na" title="{{ t('rep_nosched') }}">—</td>{% endif %}
+          {{ n(r.actual, hours=true) }}
+          {{ n(r.official_days) }}
+          {{ n(r.actual_days) }}
+          {{ n(r.absent_days, bad=true) }}
+          {{ n(r.leave_days, dec=true, bad=true) }}
+          {{ n(r.missing_count, bad=true) }}
+          {{ n(r.late_hours, hours=true, bad=true) }}
+          {{ n(r.overtime, hours=true, good=true) }}
+          {{ n(r.rest_days, good=true) }}
+          {{ n(r.holiday_days, good=true) }}
+          {{ n(r.deduction_hours, hours=true, bad=true) }}
+          {{ n(r.deduction_days, dec=true, bad=true) }}
+          <td class="admin"></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td class="tot-l sticky c1" colspan="2">{{ t('rep_total') }} · {{ summary.employees }}</td>
+          <td class="n">{{ hm(T.official) or '0:00' }}</td>
+          <td class="n">{{ hm(T.actual) or '0:00' }}</td>
+          <td class="n">{{ T.official_days }}</td>
+          <td class="n">{{ T.actual_days }}</td>
+          <td class="n bad">{{ T.absent_days }}</td>
+          {{ n(T.leave_days, dec=true, bad=true) }}
+          <td class="n bad">{{ T.missing_count }}</td>
+          <td class="n bad">{{ hm(T.late_hours) or '0:00' }}</td>
+          <td class="n good">{{ hm(T.overtime) or '0:00' }}</td>
+          <td class="n good">{{ T.rest_days }}</td>
+          <td class="n good">{{ T.holiday_days }}</td>
+          <td class="n bad">{{ hm(T.deduction_hours) or '0:00' }}</td>
+          <td class="n bad">{{ '%.2f'|format(T.deduction_days) }}</td>
+          <td class="admin"></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+
+  <ul class="sum-notes">
+    <li>{{ t('sum_formula') }}</li>
+    <li>{{ t('sum_days_note') }}</li>
+    <li>{{ t('rep_leave_unavailable') }}</li>
+    {% if summary.scheduled < summary.employees %}<li>{{ t('rep_summary_schedule_note', scheduled=summary.scheduled, total=summary.employees) }}</li>{% endif %}
+  </ul>
+</section>
+{% endif %}
+<script>
+document.querySelectorAll('.sumsheet .af').forEach(btn => btn.addEventListener('click', () => {
+  const tb = document.querySelector('.sumsheet tbody'), i = +btn.dataset.col;
+  const dir = btn.dataset.dir === 'asc' ? 'desc' : 'asc';
+  document.querySelectorAll('.sumsheet .af').forEach(x => delete x.dataset.dir);
+  btn.dataset.dir = dir;
+  const val = r => { const c = r.cells[i]; return (c.dataset.v ?? c.textContent).trim(); };
+  [...tb.rows].sort((a, b) => {
+    const x = val(a), y = val(b), nx = Number(x), ny = Number(y);
+    const r = (x !== '' && y !== '' && !isNaN(nx) && !isNaN(ny)) ? nx - ny : x.localeCompare(y, 'ar');
+    return dir === 'asc' ? r : -r;
+  }).forEach(r => tb.appendChild(r));
+}));
+</script>
+{% endblock %}

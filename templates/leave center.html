@@ -1,0 +1,228 @@
+{# مركز الإجازات داخل الداشبورد — يتضاف في dashboard.html بـ:  {% include "_leave_center.html" %}
+   بيعتمد على leave_employees و leave_types اللي app.py بيبعتهم للداشبورد. #}
+{% macro _tx(en, ar) %}{{ ar if L == 'ar' else en }}{% endmacro %}
+<section class="lc" id="lcRoot" dir="{{ DIR }}">
+<style>
+.lc{--ink:#1c1a2e;--muted:#6a6880;--line:#e9e7f2;--soft:#f6f5fb;--brand:#5b3fd0;--ok:#2e7d32;--warn:#e65100;--bad:#c62828;
+  color:var(--ink);margin:24px 0}
+.lc *{box-sizing:border-box}
+.lc h2{font-size:18px;margin:0 0 12px}
+.lc-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px}
+.lc-card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;cursor:pointer;text-align:start;font:inherit;color:inherit;transition:.15s}
+.lc-card:hover{border-color:var(--brand);box-shadow:0 2px 10px rgba(91,63,208,.12)}
+.lc-card.on{border-color:var(--brand);background:#f1eefc}
+.lc-card small{display:block;color:var(--muted);font-size:12px;margin-bottom:6px}
+.lc-card b{font-size:26px;line-height:1}
+.lc-card em{font-style:normal;font-size:12px;color:var(--muted);margin-inline-start:4px}
+.lc-wrap{overflow-x:auto;background:#fff;border:1px solid var(--line);border-radius:12px;margin-bottom:12px}
+.lc table{width:100%;border-collapse:collapse;font-size:13.5px}
+.lc th{background:var(--soft);color:var(--muted);font-weight:600;padding:9px 10px;text-align:start;white-space:nowrap}
+.lc td{padding:8px 10px;border-top:1px solid var(--line);vertical-align:middle}
+.lc input,.lc select{font:inherit;padding:6px 8px;border:1px solid #d7d4e6;border-radius:8px;background:#fff;color:inherit;max-width:100%}
+.lc input[readonly]{background:var(--soft)}
+.lc #lcCode{width:190px}.lc #lcDays,.lc #lcHours{width:80px}.lc #lcNotes{width:150px}
+.lc .avail{font-weight:700;white-space:nowrap}
+.lc .avail.warn{color:var(--warn)}.lc .avail.bad{color:var(--bad)}
+.lc button.go{background:var(--brand);color:#fff;border:0;border-radius:8px;padding:8px 16px;font:inherit;cursor:pointer;white-space:nowrap}
+.lc button.go:disabled{opacity:.5;cursor:not-allowed}
+.lc-msg{padding:9px 12px;border-radius:8px;margin-bottom:12px;font-size:13.5px}
+.lc-msg.ok{background:#e8f5e9;color:var(--ok)}.lc-msg.err{background:#fdecea;color:var(--bad)}.lc-msg.warn{background:#fff3e0;color:var(--warn)}
+.lc-hist-h{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin:18px 0 8px}
+.lc-hist-h h3{margin:0;font-size:16px}
+.lc-chip{background:var(--soft);border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:12px;color:var(--muted)}
+.lc .st{padding:2px 8px;border-radius:999px;font-size:12px}
+.lc .st.y{background:#e8f5e9;color:var(--ok)}.lc .st.n{background:#fff3e0;color:var(--warn)}
+.lc .empty{padding:22px;text-align:center;color:var(--muted)}
+</style>
+
+<h2>{{ _tx('Leave balances', 'أرصدة الإجازات') }}</h2>
+<div class="lc-cards" id="lcCards">
+  <button type="button" class="lc-card" data-k="total" data-f=""><small>{{ _tx('Available balance', 'الرصيد المتاح') }}</small><b>—</b><em>{{ t('days') }}</em></button>
+  <button type="button" class="lc-card" data-k="casual" data-f="C"><small>{{ _tx('Casual balance', 'رصيد العارضة') }}</small><b>—</b><em>{{ t('days') }}</em></button>
+  <button type="button" class="lc-card" data-k="annual" data-f="A"><small>{{ _tx('Annual balance', 'رصيد الاعتيادي') }}</small><b>—</b><em>{{ t('days') }}</em></button>
+  <button type="button" class="lc-card" data-k="sick" data-f="S"><small>{{ _tx('Paid sick leave left (3 years)', 'المتبقي من المرضي بأجر (خلال 3 سنوات)') }}</small><b>—</b><em>{{ t('days') }}</em></button>
+  <button type="button" class="lc-card" data-k="permissions" data-f="PERM"><small>{{ _tx('Permissions left this month', 'الأذونات المتبقية هذا الشهر') }}</small><b>—</b></button>
+</div>
+
+<div id="lcMsg" class="lc-msg" hidden></div>
+
+<div class="lc-wrap"><table>
+  <thead><tr>
+    <th>{{ _tx('Employee code / search', 'كود الموظف (بحث)') }}</th>
+    <th>{{ _tx('Name', 'الاسم') }}</th>
+    <th>{{ _tx('Management', 'الإدارة') }}</th>
+    <th>{{ _tx('Leave type', 'نوع الإجازة') }}</th>
+    <th>{{ _tx('Available balance', 'الرصيد المتاح') }}</th>
+    <th id="lcQtyH">{{ _tx('Days', 'عدد الأيام') }}</th>
+    <th>{{ _tx('Start date', 'تاريخ البداية') }}</th>
+    <th>{{ _tx('End date', 'تاريخ النهاية') }}</th>
+    <th>{{ _tx('Notes', 'ملاحظات') }}</th>
+    <th></th>
+  </tr></thead>
+  <tbody><tr>
+    <td>
+      <input id="lcCode" list="lcEmpList" autocomplete="off" placeholder="{{ _tx('Code or name…', 'اكتبي الكود أو الاسم…') }}">
+      <datalist id="lcEmpList">{% for e in leave_employees %}<option value="{{ e.code }} — {{ e.name }}">{% endfor %}</datalist>
+    </td>
+    <td id="lcName">—</td>
+    <td id="lcMgmt">—</td>
+    <td><select id="lcType">
+      {% for c in leave_types %}<option value="{{ c }}">{{ c }} — {{ t('leave_type_' ~ c) }}</option>{% endfor %}
+    </select></td>
+    <td class="avail" id="lcAvail">—</td>
+    <td><input id="lcDays" type="number" min="0.5" step="0.5" value="1"><input id="lcHours" type="number" min="0.5" max="2" step="0.5" value="1" hidden></td>
+    <td><input id="lcFrom" type="date"></td>
+    <td><input id="lcTo" type="date" readonly></td>
+    <td><input id="lcNotes" placeholder="{{ _tx('Optional', 'اختياري') }}"></td>
+    <td><button type="button" class="go" id="lcSave" disabled>{{ _tx('Submit for approval', 'إرسال للاعتماد') }}</button></td>
+  </tr></tbody>
+</table></div>
+
+<div class="lc-hist-h">
+  <h3 id="lcHistTitle">{{ _tx('Leave history', 'هيستوري الإجازات') }}</h3>
+  <span class="lc-chip" id="lcHistFilter" hidden></span>
+</div>
+<div class="lc-wrap"><table>
+  <thead><tr>
+    <th>{{ _tx('Type', 'النوع') }}</th><th>{{ _tx('From', 'من') }}</th><th>{{ _tx('To', 'إلى') }}</th>
+    <th>{{ t('days') }}</th><th>{{ _tx('Hours', 'ساعات') }}</th><th>{{ _tx('Status', 'الحالة') }}</th>
+  </tr></thead>
+  <tbody id="lcHist"><tr><td colspan="6" class="empty">{{ _tx('Search for an employee to see the history.', 'ابحثي عن موظف علشان يظهر الهيستوري.') }}</td></tr></tbody>
+</table></div>
+
+<script>
+(function () {
+  var EMP = {{ leave_employees|tojson }};
+  var LABEL = { {% for c in leave_types %}{{ c|tojson }}: {{ t('leave_type_' ~ c)|tojson }}{{ ',' if not loop.last }}{% endfor %} };
+  var T = {
+    avail: {{ _tx('Available', 'المتاح')|tojson }}, locked: {{ t('leave_locked')|tojson }},
+    over: {{ _tx('Exceeds balance — a casual excess needs manager approval to convert to annual.', 'أكبر من الرصيد — زيادة العارضة محتاجة اعتماد المدير لتحويلها لاعتيادي.')|tojson }},
+    none: {{ _tx('Not enough balance.', 'الرصيد غير كافٍ.')|tojson }},
+    pickEmp: {{ _tx('Pick an employee from the list first.', 'اختاري موظفًا من القائمة الأول.')|tojson }},
+    pickDate: {{ _tx('Choose a start date.', 'حددي تاريخ البداية.')|tojson }},
+    sent: {{ _tx('Request saved and sent to the manager for approval. It counts in the balance once approved.', 'اتسجل الطلب واتبعت للمدير للاعتماد. هيتحسب على الرصيد بعد الموافقة.')|tojson }},
+    sentNoMail: {{ _tx('Request saved as pending, but the email could not be sent: ', 'الطلب اتحفظ معلق لكن البريد ماتبعتش: ')|tojson }},
+    fail: {{ _tx('Could not save.', 'تعذر الحفظ.')|tojson }},
+    hist: {{ _tx('Leave history', 'هيستوري الإجازات')|tojson }},
+    none_hist: {{ _tx('No records.', 'مفيش حركات.')|tojson }},
+    appr: {{ _tx('Approved', 'معتمد')|tojson }}, pend: {{ _tx('Not approved', 'غير معتمد')|tojson }},
+    days: {{ _tx('Days', 'عدد الأيام')|tojson }}, hours: {{ _tx('Hours', 'عدد الساعات')|tojson }},
+    permHelp: {{ _tx('Max 2 hours, one day.', 'حتى ساعتين، يوم واحد.')|tojson }}
+  };
+  var $ = function (id) { return document.getElementById(id); };
+  var cur = null, filter = '';
+
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function iso(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  // تاريخ النهاية = آخر يوم عمل بعد عدّ عدد الأيام مع تخطي أيام الراحة الأسبوعية للموظف
+  function endDate(start, n, rest) {
+    var d = new Date(start + 'T00:00:00');
+    if (isNaN(d)) return '';
+    n = Math.max(1, Math.ceil(n || 1));
+    var c = 0, last = null, g = 0;
+    while (c < n && g++ < 800) {
+      if (rest.indexOf((d.getDay() + 6) % 7) < 0) { c++; last = new Date(d); }
+      d.setDate(d.getDate() + 1);
+    }
+    return iso(last || new Date(start + 'T00:00:00'));
+  }
+  function msg(text, kind) { var m = $('lcMsg'); m.textContent = text; m.className = 'lc-msg ' + kind; m.hidden = !text; }
+  function findEmp(v) {
+    v = (v || '').trim(); if (!v) return null;
+    var code = v.split(' — ')[0].trim();
+    return EMP.filter(function (e) { return e.code === code; })[0] ||
+           EMP.filter(function (e) { return e.name === v; })[0] || null;
+  }
+
+  function renderCards() {
+    var keys = ['total', 'casual', 'annual', 'sick', 'permissions'];
+    Array.prototype.forEach.call($('lcCards').children, function (c) {
+      var k = c.getAttribute('data-k');
+      c.querySelector('b').textContent = cur ? +cur.balance[k].toFixed(2) : '—';
+      c.classList.toggle('on', c.getAttribute('data-f') === filter && !!cur && (filter !== '' || c.getAttribute('data-k') === 'total'));
+    });
+  }
+  function renderHist() {
+    var body = $('lcHist'), chip = $('lcHistFilter');
+    if (!cur) { return; }
+    $('lcHistTitle').textContent = T.hist + ' — ' + cur.name;
+    chip.hidden = !filter; chip.textContent = filter ? filter + ' — ' + LABEL[filter] : '';
+    var rows = cur.history.filter(function (h) { return !filter || h.code === filter; });
+    if (!rows.length) { body.innerHTML = '<tr><td colspan="6" class="empty">' + T.none_hist + '</td></tr>'; return; }
+    body.innerHTML = '';
+    rows.forEach(function (h) {
+      var tr = document.createElement('tr');
+      [h.code + ' — ' + (LABEL[h.code] || ''), h.start, h.end, h.days, h.hours || '—'].forEach(function (v) {
+        var td = document.createElement('td'); td.textContent = v; tr.appendChild(td);
+      });
+      var st = document.createElement('td'), s = document.createElement('span');
+      s.className = 'st ' + (h.approved ? 'y' : 'n'); s.textContent = h.approved ? T.appr : T.pend;
+      st.appendChild(s); tr.appendChild(st); body.appendChild(tr);
+    });
+  }
+  function availFor(c) {
+    if (!cur) return null;
+    var b = cur.balance;
+    if (c === 'A') return b.annual; if (c === 'C') return b.casual;
+    if (c === 'S') return b.sick; if (c === 'PERM') return b.permissions;
+    return null;
+  }
+  function update() {
+    var c = $('lcType').value, perm = c === 'PERM', mission = c === 'M';
+    $('lcDays').hidden = perm;
+    $('lcHours').hidden = !(perm || mission);
+    $('lcQtyH').textContent = perm ? T.hours : T.days;
+    var from = $('lcFrom').value, n = perm ? 1 : (+$('lcDays').value || 1);
+    $('lcTo').value = from ? (perm ? from : endDate(from, n, cur ? cur.rest : [4, 5])) : '';
+    var a = $('lcAvail'), left = availFor(c); a.className = 'avail';
+    if (!cur) { a.textContent = '—'; }
+    else if (left === null) { a.textContent = '—'; }
+    else {
+      var need = perm ? 1 : n, txt = T.avail + ': ' + (+left.toFixed(2));
+      if ((c === 'A' || c === 'C') && !cur.balance.available) { txt += ' — ' + T.locked; a.className += ' bad'; }
+      else if (need > left) { a.className += ' warn'; txt += ' — ' + (c === 'C' ? T.over : T.none); }
+      a.textContent = txt;
+    }
+    $('lcSave').disabled = !cur;
+  }
+  function select(e) {
+    cur = e;
+    $('lcName').textContent = e ? e.name : '—';
+    $('lcMgmt').textContent = e ? e.management + (e.department && e.department !== '—' ? ' / ' + e.department : '') : '—';
+    filter = ''; msg('', 'ok');
+    renderCards(); update();
+    if (e) renderHist();
+  }
+
+  $('lcCode').addEventListener('input', function () { var e = findEmp(this.value); if (e !== cur) select(e); });
+  $('lcCode').addEventListener('change', function () { select(findEmp(this.value)); });
+  ['lcType', 'lcFrom', 'lcDays', 'lcHours'].forEach(function (id) { $(id).addEventListener('input', update); $(id).addEventListener('change', update); });
+  Array.prototype.forEach.call($('lcCards').children, function (c) {
+    c.addEventListener('click', function () { filter = c.getAttribute('data-f'); renderCards(); renderHist(); $('lcHist').scrollIntoView({block: 'nearest', behavior: 'smooth'}); });
+  });
+
+  $('lcSave').addEventListener('click', function () {
+    if (!cur) { msg(T.pickEmp, 'err'); return; }
+    if (!$('lcFrom').value) { msg(T.pickDate, 'err'); return; }
+    var c = $('lcType').value, perm = c === 'PERM', mission = c === 'M', btn = this;
+    var body = {
+      employee_code: cur.code, leave_code: c, leave_date: $('lcFrom').value, end_date: $('lcTo').value,
+      days: perm ? 0 : (+$('lcDays').value || 0), hours: (perm || mission) ? (+$('lcHours').value || 0) : 0,
+      notes: $('lcNotes').value
+    };
+    btn.disabled = true;
+    fetch('/leaves/api/save', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)})
+      .then(function (r) { return r.json().then(function (j) { return {ok: r.ok && j.ok, j: j}; }); })
+      .then(function (x) {
+        if (!x.ok) { msg(x.j.error || T.fail, 'err'); }
+        else if (x.j.warning) { msg(T.sentNoMail + x.j.warning, 'warn'); }
+        else { msg(T.sent, 'ok'); }
+      })
+      .catch(function () { msg(T.fail, 'err'); })
+      .then(function () { btn.disabled = !cur; });
+  });
+
+  update();
+})();
+</script>
+</section>

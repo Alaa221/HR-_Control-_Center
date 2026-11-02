@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Leave approval{% endblock %}
+{% block h1 %}{{ 'Leave approval' if L != 'ar' else 'اعتماد الإجازة' }}{% endblock %}
+{% block sub %}{{ 'Review the request before making a decision.' if L != 'ar' else 'راجعي طلب الإجازة قبل اتخاذ القرار.' }}{% endblock %}
+{% block content %}
+<section style="max-width:760px;margin:24px auto;padding:24px;background:#fff;border:1px solid #e9e7f2;border-radius:16px">
+  {% if result %}
+    <h2>{{ 'Request approved' if result == 'approved' and L != 'ar' else ('تم اعتماد الطلب' if result == 'approved' else ('Request rejected' if L != 'ar' else 'تم رفض الطلب')) }}</h2>
+    <p>{{ 'The decision has been recorded. This link can no longer be used.' if L != 'ar' else 'تم تسجيل القرار، ولا يمكن استخدام هذا الرابط مرة أخرى.' }}</p>
+  {% elif not leave_request %}
+    <h2>{{ 'Link unavailable' if L != 'ar' else 'الرابط غير متاح' }}</h2>
+    <p>{{ 'This request was already reviewed or the link is invalid.' if L != 'ar' else 'تمت مراجعة الطلب بالفعل أو أن الرابط غير صالح.' }}</p>
+  {% else %}
+    <h2>{{ 'Leave request' if L != 'ar' else 'طلب إجازة' }}</h2>
+    <dl>
+      <dt>{{ 'Employee' if L != 'ar' else 'الموظف' }}</dt><dd>{{ employee_name or leave_request.code }}</dd>
+      <dt>{{ 'Employee code' if L != 'ar' else 'كود الموظف' }}</dt><dd>{{ leave_request.code }}</dd>
+      <dt>{{ 'Leave type' if L != 'ar' else 'نوع الإجازة' }}</dt><dd>{{ leave_request.leave_code }}</dd>
+      <dt>{{ 'From' if L != 'ar' else 'من' }}</dt><dd>{{ leave_request.leave_date }}</dd>
+      <dt>{{ 'To' if L != 'ar' else 'إلى' }}</dt><dd>{{ leave_request.end_date }}</dd>
+      <dt>{{ 'Days' if L != 'ar' else 'الأيام' }}</dt><dd>{{ leave_request.days }}</dd>
+      <dt>{{ 'Hours' if L != 'ar' else 'الساعات' }}</dt><dd>{{ leave_request.hours }}</dd>
+      <dt>{{ 'Notes' if L != 'ar' else 'ملاحظات' }}</dt><dd>{{ leave_request.notes or '—' }}</dd>
+    </dl>
+    {% if error %}<p role="alert" style="color:#c62828">{{ error }}</p>{% endif %}
+    <form method="post" style="display:flex;gap:12px;flex-wrap:wrap">
+      <button type="submit" name="decision" value="approve" style="padding:10px 18px;background:#2e7d32;color:#fff;border:0;border-radius:8px;cursor:pointer">
+        {{ 'Approve' if L != 'ar' else 'اعتماد' }}
+      </button>
+      <button type="submit" name="decision" value="reject" style="padding:10px 18px;background:#c62828;color:#fff;border:0;border-radius:8px;cursor:pointer">
+        {{ 'Reject' if L != 'ar' else 'رفض' }}
+      </button>
+    </form>
+  {% endif %}
+</section>
+{% endblock %}

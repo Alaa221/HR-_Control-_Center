@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% from '_m.html' import icon with context %}
+
+{% macro kcard(k) -%}
+  {% set off = k.value is none %}
+  {% set href = url_for('kpi', key=k.key) if not off else none %}
+  <{{ 'a' if href else 'div' }} class="kpi {{ 'off' if off }}" style="--c:{{ k.color }}"
+     {% if href %}href="{{ href }}"{% else %}title="{{ t('no_data') }}"{% endif %}>
+    <div class="kpi-body">
+      <span class="kpi-label">{{ t('k_' + k.key) }}</span>
+      <strong class="kpi-value">
+        {% if off %}<i class="dash"></i>{% else %}<span data-count="{{ k.value }}" data-dec="{{ k.dec or 0 }}">{{ k.value|num(k.dec or 0) }}</span>{% endif %}
+      </strong>
+    </div>
+    <span class="kpi-ico">{{ icon(k.icon, 20) }}</span>
+    {% if href %}<span class="kpi-go">{{ icon('chevron', 14) }}</span>{% endif %}
+  </{{ 'a' if href else 'div' }}>
+{%- endmacro %}
+
+{% block content %}
+<section class="panel">
+  <h2 class="sec">{{ t('sec_employees') }}</h2>
+  <div class="kpi-grid g7">{% for k in groups.employees %}{{ kcard(k) }}{% endfor %}</div>
+
+  <h2 class="sec">{{ t('sec_org') }}</h2>
+  <div class="kpi-grid g4">{% for k in groups.org %}{{ kcard(k) }}{% endfor %}</div>
+
+  <h2 class="sec">{{ t('sec_ins') }}</h2>
+  <div class="kpi-grid g4">{% for k in groups.ins %}{{ kcard(k) }}{% endfor %}</div>
+</section>
+
+<section class="panel">
+  <div class="cols3">
+    {% for title, items, param in panels %}
+    <div class="barcard">
+      <div class="barcard-head">
+        <h3>{{ t(title) }}</h3>
+        <a href="{{ url_for('org', level=param) }}">{{ t('view_all') }}</a>
+      </div>
+      <div class="barlist">
+        {% for b in items %}
+        <a class="bar" href="{{ url_for('employees', **{param: b.label}) }}">
+          <div class="bar-row"><span>{{ b.label }}</span><b>{{ b.count|num }}</b></div>
+          <div class="track"><i style="width:{{ b.pct }}%"></i></div>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

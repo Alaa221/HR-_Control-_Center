@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% from '_m.html' import icon, pill, dropdown with context %}
+{% block title %}{{ t('alerts') }}{% endblock %}
+{% block h1 %}{{ t('title_dash') if false else t('alerts') }}{% endblock %}
+{% block sub %}{{ t('alerts_sub') }}{% endblock %}
+{% block content %}
+<div class="statrow">
+  {% for c in cards %}
+  <a class="stat clickable {{ 'sel' if sev == c.label }}" style="--c:{{ c.color }}" href="{{ c.href }}"><span>{{ c.label|tv('severity') }}</span><strong>{{ c.value|num }}</strong></a>
+  {% endfor %}
+</div>
+<section class="panel table-panel">
+  <form class="filters" method="get">
+    {% if sev %}<input type="hidden" name="severity" value="{{ sev }}">{% endif %}
+    <label class="search">{{ icon('search', 16) }}<input name="q" value="{{ q }}" placeholder="{{ t('search') }}"></label>
+    {{ dropdown(t('type'), 'type', [('Probation', 'Probation'|tv('type')), ('Contract', 'Contract'|tv('type')), ('Documents', 'Documents'|tv('type'))]) }}
+    <button class="btn primary">{{ t('apply') }}</button><a class="btn" href="{{ url_for('alerts') }}">{{ t('reset') }}</a>
+    <span class="grow"></span><span class="muted">{{ total|num }} {{ t('results') }}</span>
+  </form>
+  <div class="tablewrap"><table>
+    <thead><tr><th>{{ t('severity') }}</th><th>{{ t('type') }}</th><th>{{ t('name') }}</th><th>{{ t('message') }}</th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr onclick="location.href='{{ url_for('employee', code=r.code) }}'">
+        <td>{{ pill('severity', r.severity) }}</td><td>{{ r.type|tv('type') }}</td>
+        <td><a class="lnk" href="{{ url_for('employee', code=r.code) }}">{{ r.name }}</a> <small class="muted mono">{{ r.code }}</small></td>
+        <td>{{ alert_msg(r, r.missing) }}</td>
+      </tr>
+    {% else %}<tr><td colspan="4" class="empty">{{ t('no_results') }}</td></tr>{% endfor %}
+    </tbody></table></div>
+  {% if pages > 1 %}<div class="pager">
+    {% if page > 1 %}<a class="btn" href="?{{ args_without('page')|urlencode }}&page={{ page-1 }}">{{ t('prev') }}</a>{% endif %}
+    <span class="muted">{{ t('page') }} {{ page }} {{ t('of') }} {{ pages }}</span>
+    {% if page < pages %}<a class="btn" href="?{{ args_without('page')|urlencode }}&page={{ page+1 }}">{{ t('next') }}</a>{% endif %}
+  </div>{% endif %}
+</section>
+{% endblock %}

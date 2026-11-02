@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% from '_m.html' import icon, pill with context %}
+{% block title %}{{ t('profile') }}{% endblock %}
+{% block h1 %}{{ t('profile') }}{% endblock %}
+{% block sub %}{{ t('pick_employee') }}{% endblock %}
+{% block content %}
+<section class="panel">
+  <form class="filters" method="get">
+    <label class="search wide">{{ icon('search', 16) }}<input name="q" value="{{ q }}" placeholder="{{ t('search') }}" autofocus></label>
+    <button class="btn primary">{{ t('apply') }}</button>
+  </form>
+  {% if not q %}<h2 class="sec">{{ t('recent_hires') }}</h2>{% endif %}
+  <div class="people">
+    {% for r in rows %}
+    <a class="person" href="{{ url_for('employee', code=r.code) }}">
+      <span class="avatar">{{ (r.name or '?')[0] }}</span>
+      <div><strong>{{ r.name }}</strong><small>{{ r.job or '—' }} · {{ r.code }}</small></div>
+      {{ pill('prob', r.prob_status) }}
+    </a>
+    {% else %}<p class="empty">{{ t('no_results') }}</p>{% endfor %}
+  </div>
+</section>
+{% endblock %}

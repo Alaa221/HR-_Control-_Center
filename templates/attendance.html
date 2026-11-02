@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+{% from '_m.html' import icon with context %}
+{% block title %}{{ t('attendance') }}{% endblock %}
+{% block h1 %}{{ t('attendance') }}{% endblock %}
+{% block sub %}{{ t('att_sub') }}{% endblock %}
+
+{% block content %}
+<div class="att" id="att" data-refresh="{{ refresh }}">
+
+  <!-- شريط الحالة -->
+  <div class="att-bar">
+    <span class="live-pill" id="livePill"><i></i><b id="liveTxt">{{ t('att_live') }}</b></span>
+    <span class="att-demo" id="demoPill" hidden>{{ t('att_demo') }}</span>
+    <span class="muted" id="updTxt"></span>
+    <span class="grow"></span>
+    <span class="muted nxt"><span id="cdTxt"></span></span>
+    <button class="btn" id="btnPause" type="button">{{ icon('pause', 15) }}<span>{{ t('att_pause') }}</span></button>
+    <button class="btn" id="btnNow" type="button">{{ icon('refresh', 15) }}<span>{{ t('att_refresh') }}</span></button>
+    <a class="btn" href="{{ url_for('attendance_report') }}">{{ icon('file', 15) }}<span>{{ t('rep_btn') }}</span></a>
+    <a class="btn" id="btnCsv" href="#">{{ icon('download', 15) }}<span>{{ t('att_export') }}</span></a>
+  </div>
+
+  <!-- سحب البصمات من الأجهزة -->
+  <section class="panel sync" id="sync" hidden>
+    <div class="sync-h">
+      <b>{{ icon('server', 16) }} {{ t('sync_h') }}</b>
+      <span class="sync-pill ok" id="syOk"></span><span class="sync-pill err" id="syErr"></span>
+      <span class="muted" id="syInfo"></span><span class="grow"></span>
+      <button class="btn" id="syRun" type="button">{{ icon('refresh', 15) }}<span>{{ t('sync_now') }}</span></button>
+      <button class="btn" id="syTog" type="button"><span></span></button>
+      <button class="btn" id="syShow" type="button"><span>{{ t('sync_toggle') }}</span></button>
+    </div>
+    <div class="sync-list" id="syList" hidden></div>
+  </section>
+
+  <!-- الفلاتر -->
+  <section class="panel att-filters">
+    <label class="search wide">{{ icon('search', 16) }}<input id="fq" autocomplete="off" placeholder="{{ t('att_search') }}"></label>
+    <label class="fld">{{ icon('server', 15) }}<select id="fMachine"><option value="">{{ t('att_all_m') }}</option></select></label>
+    <label class="fld">{{ icon('user', 15) }}<select id="fManager"><option value="">{{ t('rep_all_managers') }}</option>
+      {% for manager in managers %}<option value="{{ manager }}">{{ manager }}</option>{% endfor %}
+    </select></label>
+    <label class="fld">{{ icon('building', 15) }}<input id="fDept" list="dl-dept" placeholder="{{ t('att_all_d') }}" autocomplete="off"></label>
+    <label class="fld">{{ icon('briefcase', 15) }}<input id="fJob" list="dl-job" placeholder="{{ t('att_all_j') }}" autocomplete="off"></label>
+    <label class="fld">{{ icon('building', 15) }}<select id="fLocation"><option value="">{{ t('att_all_locations') }}</option>
+      {% for location in locations %}<option value="{{ location }}">{{ location }}</option>{% endfor %}
+    </select></label>
+    <datalist id="dl-dept">{% for d in departments %}<option value="{{ d }}">{% endfor %}</datalist>
+    <datalist id="dl-job">{% for j in jobs %}<option value="{{ j }}">{% endfor %}</datalist>
+    <div class="att-dates">
+      <div class="chips" id="chips">
+        <button type="button" data-r="0" class="on">{{ t('att_today') }}</button>
+        <button type="button" data-r="1">{{ t('att_yesterday') }}</button>
+        <button type="button" data-r="7">{{ t('att_7d') }}</button>
+      </div>
+      <label class="fld dt">{{ icon('calendar', 15) }}<span>{{ t('att_from') }}</span><input type="date" id="fStart"></label>
+      <label class="fld dt">{{ icon('calendar', 15) }}<span>{{ t('att_to') }}</span><input type="date" id="fEnd"></label>
+      <button class="btn" id="btnClear" type="button">{{ icon('x', 14) }}<span>{{ t('att_clear') }}</span></button>
+    </div>
+  </section>
+
+  <div class="att-err" id="attErr" hidden>
+    <div class="ae-ico">{{ icon('shield-alert', 26) }}</div>
+    <div><strong>{{ t('att_err_title') }}</strong><p id="attErrMsg"></p><small>{{ t('att_err_hint') }}</small>
+    <p><a class="btn" href="{{ url_for('attendance_schema') }}">{{ icon('search', 14) }}<span>{{ t('att_schema') }}</span></a></p></div>
+    <button class="btn primary" id="btnRetry" type="button">{{ t('att_retry') }}</button>
+  </div>
+
+  <div id="attMain">
+    <!-- سجل البصمات -->
+    <div class="sec att-sec">{{ t('att_events_h') }} <span class="newbadge" id="newBadge" hidden></span><span class="grow"></span><span class="muted cnt" id="cntTxt"></span></div>
+    <section class="panel table-panel att-table">
+      <div class="tablewrap"><table>
+        <thead><tr>
+          <th>{{ t('att_time') }}</th><th>{{ t('att_code') }}</th><th>{{ t('att_name') }}</th>
+          <th>{{ t('att_job') }}</th><th>{{ t('att_dept') }}</th><th>{{ t('att_machine') }}</th><th>{{ t('att_state') }}</th>
+        </tr></thead>
+        <tbody id="tb"></tbody>
+      </table></div>
+      <div class="pager" id="pager"></div>
+    </section>
+  </div>
+</div>
+
+<script>
+window.ATT = {
+  L: {{ L|tojson }},
+  api: {{ url_for('api_attendance')|tojson }}, csv: {{ url_for('attendance')|tojson }} + ".csv",
+  emp: {{ url_for('employee', code='__C__')|tojson }},
+  s: {
+    all_m: {{ t('att_all_m')|tojson }}, live: {{ t('att_live')|tojson }}, paused: {{ t('att_paused')|tojson }},
+    offline: {{ t('att_offline')|tojson }}, none: {{ t('att_no_rows')|tojson }}, pause: {{ t('att_pause')|tojson }},
+    resume: {{ t('att_resume')|tojson }}, in: {{ t('att_in')|tojson }}, out: {{ t('att_out')|tojson }},
+    active: {{ t('att_active')|tojson }}, idle: {{ t('att_idle')|tojson }}, next: {{ t('att_next')|tojson }},
+    prev: {{ t('att_prev')|tojson }}, nextp: {{ t('att_next_p')|tojson }},
+    punches: {{ t('att_punches')|tojson }}, people: {{ t('att_people')|tojson }}, unmatched: {{ t('att_unmatched')|tojson }},
+    n_new: {{ t('att_new', n='{n}')|tojson }}, rows: {{ t('att_rows', n='{n}')|tojson }},
+    page: {{ t('att_pp', a='{a}', b='{b}')|tojson }},
+    ago_s: {{ t('att_ago_s', n='{n}')|tojson }}, ago_m: {{ t('att_ago_m', n='{n}')|tojson }}, ago_h: {{ t('att_ago_h', n='{n}')|tojson }}
+  }
+};
+</script>
+<script>
+window.SYNC = { api: {{ url_for('api_sync')|tojson }}, run: {{ url_for('api_sync_run')|tojson }}, tog: {{ url_for('api_sync_toggle')|tojson }},
+  s: { ok: {{ t('sync_ok')|tojson }}, err: {{ t('sync_err')|tojson }}, new: {{ t('sync_new')|tojson }}, stop: {{ t('sync_stop')|tojson }},
+       start: {{ t('sync_start')|tojson }}, off: {{ t('sync_off')|tojson }}, busy: {{ t('sync_busy')|tojson }}, last: {{ t('sync_last')|tojson }},
+       next: {{ t('sync_next')|tojson }}, never: {{ t('sync_never')|tojson }} } };
+</script>
+<script src="{{ asset('js/attendance.js') }}"></script>
+<script src="{{ asset('js/sync.js') }}"></script>
+{% endblock %}

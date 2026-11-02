@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% from '_m.html' import icon with context %}
+{% block title %}{{ t(title) }}{% endblock %}
+{% block h1 %}{{ t(title) }}{% endblock %}
+{% block sub %}{{ t('org_sub') }} · {{ total }}{% endblock %}
+{% block back %}<a class="back" href="{{ url_for('dashboard') }}" title="{{ t('back') }}">{{ icon('arrow-left', 18) }}</a>{% endblock %}
+{% block content %}
+<section class="panel">
+  <div class="filters"><label class="search">{{ icon('search', 16) }}<input id="orgq" placeholder="{{ t('search') }}"></label></div>
+  <div class="orggrid" id="orggrid">
+    {% for b in items %}
+    <a class="orgitem" data-s="{{ b.label }}" href="{{ url_for('employees', **{level: b.label}) }}">
+      <div class="bar-row"><span>{{ b.label }}</span><b>{{ b.count|num }}</b></div>
+      <div class="track"><i style="width:{{ b.pct }}%"></i></div>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,226 @@
+{% extends 'base.html' %}
+{% from '_m.html' import icon with context %}
+{% block title %}{{ t('rep_btn') }}{% endblock %}
+{% block h1 %}{{ t('rep_btn') }}{% endblock %}
+{% block sub %}{{ t('rep_sub') }}{% endblock %}
+
+{% block content %}
+<div class="att-bar noprint">
+  <a class="btn" href="{{ url_for('attendance') }}">{{ icon('fingerprint', 15) }}<span>{{ t('attendance') }}</span></a>
+  {% set sum_dept = selected_dept or (rep.emp.dept if rep and rep.emp.dept else '') %}
+  {% set sum_manager = selected_manager or (rep.emp.manager if rep and rep.emp.manager else '') %}
+  <a class="btn primary" href="{{ url_for('attendance_summary', dept=sum_dept, manager=sum_manager, start=start, end=end) }}">{{ icon('grid', 15) }}<span>{{ t('rep_all_summary') }}</span></a>
+  {% if demo %}<span class="att-demo">{{ t('att_demo') }}</span>{% endif %}
+  <span class="grow"></span>
+  {% if rep %}
+  <a class="btn" href="{{ url_for('attendance_report_xlsx', code=code, start=start, end=end) }}">{{ icon('download', 15) }}<span>{{ t('rep_xlsx') }}</span></a>
+  {% endif %}
+  {% if reports %}
+  <button class="btn" type="button" onclick="window.print()">{{ icon('file', 15) }}<span>{{ t('rep_print') }}</span></button>
+  {% endif %}
+</div>
+
+<form class="panel att-filters noprint" method="get" action="{{ url_for('attendance_report') }}">
+  <label class="fld">{{ icon('building', 15) }}
+    <select id="repManager" name="manager">
+      <option value="">{{ t('rep_all_managers') }}</option>
+      {% for manager in managers %}<option value="{{ manager }}" {{ 'selected' if selected_manager == manager }}>{{ manager }}</option>{% endfor %}
+    </select>
+  </label>
+  <label class="fld">{{ icon('building', 15) }}
+    <select id="repDept" name="dept">
+      <option value="">{{ t('rep_all_depts') }}</option>
+      {% for d in departments %}<option value="{{ d }}" {{ 'selected' if selected_dept == d }}>{{ d }}</option>{% endfor %}
+    </select>
+  </label>
+  <label class="fld">{{ icon('building', 15) }}
+    <select id="repLocation" name="location">
+      <option value="">{{ t('att_all_locations') }}</option>
+      {% for location in locations %}<option value="{{ location }}" {{ 'selected' if selected_location == location }}>{{ location }}</option>{% endfor %}
+    </select>
+  </label>
+  <label class="fld wide">{{ icon('user', 15) }}
+    <input name="code" list="dl-emps" value="{{ code }}" placeholder="{{ t('rep_emp') }}" autocomplete="off">
+  </label>
+  <datalist id="dl-emps">{% for e in emps %}<option value="{{ e.code }} — {{ e.name }}" data-department="{{ e.department or '' }}" data-manager="{{ e.manager or '' }}" data-location="{{ e.location or '' }}">{% endfor %}</datalist>
+  <label class="fld dt">{{ icon('calendar', 15) }}<span>{{ t('rep_from') }}</span><input type="date" name="start" value="{{ start }}" required></label>
+  <label class="fld dt">{{ icon('calendar', 15) }}<span>{{ t('rep_to') }}</span><input type="date" name="end" value="{{ end }}" required></label>
+  <button class="btn primary" type="submit">{{ icon('search', 15) }}<span>{{ t('rep_show') }}</span></button>
+</form>
+<script>
+(() => {
+  const dept = document.getElementById('repDept');
+  const manager = document.getElementById('repManager');
+  const location = document.getElementById('repLocation');
+  const employee = document.querySelector('input[name="code"]');
+  const list = document.getElementById('dl-emps');
+  const options = [...list.options];
+  const updateEmployees = () => {
+    const allowed = options.filter(option =>
+      (!dept.value || option.dataset.department === dept.value) &&
+      (!manager.value || option.dataset.manager === manager.value) &&
+      (!location.value || option.dataset.location === location.value));
+    list.replaceChildren(...allowed);
+  };
+  dept.addEventListener('change', () => {
+    employee.value = '';
+    updateEmployees();
+    dept.form.requestSubmit();
+  });
+  manager.addEventListener('change', () => {
+    employee.value = '';
+    updateEmployees();
+    manager.form.requestSubmit();
+  });
+  location.addEventListener('change', () => {
+    employee.value = '';
+    updateEmployees();
+    location.form.requestSubmit();
+  });
+  employee.addEventListener('input', () => {
+    if (employee.value.trim()) {
+      dept.value = '';
+      manager.value = '';
+      updateEmployees();
+    }
+  });
+  updateEmployees();
+})();
+</script>
+
+{% if err %}
+<div class="att-err"><div class="ae-ico">{{ icon('shield-alert', 26) }}</div><div><strong>{{ err }}</strong></div></div>
+{% elif not reports %}
+<section class="panel"><p class="muted" style="margin:0">{{ t('rep_empty') }}</p></section>
+{% else %}
+{% if reports|selectattr('has_schedule', 'equalto', false)|list %}<div class="rep-warn noprint">{{ icon('shield-alert', 16) }}<span>{{ t('rep_nosched') }}</span></div>{% endif %}
+
+
+{% for rep in reports %}
+{% set report_index = loop.index %}
+<div class="att-bar noprint">
+  <a class="btn" href="{{ url_for('leaves', code=rep.emp.code) }}">{{ icon('calendar', 15) }}<span>{{ t('leaves') }}</span></a>
+</div>
+<div class="rep-scroll">
+<table class="rep" dir="ltr">
+  <thead>
+    <tr><th class="rep-title" colspan="19">{{ rep.title }}</th></tr>
+    <tr>
+      <th rowspan="2" class="w-code">الكود</th><th rowspan="2" class="w-name">اسم الموظف</th>
+      <th rowspan="2">التاريخ</th><th rowspan="2">اليوم</th><th rowspan="2" class="w-note">ملاحظات اليوم</th>
+      <th colspan="3">مواعيد العمل الفعلية</th><th rowspan="2">الإضافي قبل بداية الدوام</th>
+      <th colspan="3" class="off-h">مواعيد العمل الرسمية</th>
+      <th rowspan="2">الإجمالي في مواعيد العمل</th><th rowspan="2">الإضافي بعد مواعيد العمل</th>
+      <th rowspan="2">التأخير عن الحضور</th><th rowspan="2">الخروج قبل الانصراف</th><th rowspan="2" class="w-st">حالة اليوم</th>
+      <th rowspan="2" colspan="2">الملاحظات</th>
+    </tr>
+    <tr><th>الحضور</th><th>الانصراف</th><th>ساعات العمل</th>
+        <th class="off-h">الحضور</th><th class="off-h">الانصراف</th><th class="off-h">ساعات العمل</th></tr>
+  </thead>
+  <tbody>
+  {% for r in rep.rows %}
+    {% set off = r.rest or r.holiday %}
+    <tr class="{{ 'is-off' if off }} {{ 'is-abs' if r.status == 'غياب' }}">
+      {% if loop.first %}
+      <td rowspan="{{ rep.layout_rows }}" class="emp-code">{{ rep.emp.code }}</td>
+      <td rowspan="{{ rep.layout_rows }}" class="emp-name">{{ rep.emp.name }}
+        <small>{{ rep.emp.job or '' }}</small></td>
+      {% endif %}
+      <td class="b">{{ r.date.day }}-{{ r.date.strftime('%b') }}</td><td class="b">{{ r.dow }}</td>
+      <td class="hol">{{ r.holiday }}</td>
+      <td>{{ ampm(r.act_in) }}</td><td>{{ ampm(r.act_out) }}</td>
+      <td>{{ hm(r.act) if (r.act or off) else '' }}</td>
+      <td class="ot-cell">{{ hm(r.ot_before, true) }}</td>
+      <td class="off-c">{{ ampm(r.off_in) }}</td><td class="off-c">{{ ampm(r.off_out) }}</td>
+      <td class="off-c">{{ hm(r.off) if r.off_in is not none else '' }}</td>
+      <td>{{ hm(r.inside, true) }}</td><td class="ot-cell">{{ hm(r.ot, true) }}</td>
+      <td class="late-cell">{{ hm(r.late, true) }}</td><td class="early-cell">{{ hm(r.early, true) }}</td>
+      <td class="st {{ 'bad' if r.status in ('غياب','فقدان بصمة') }}">{{ r.status }}</td>
+      {% set sp = rep.sum_spans.get(loop.index0) %}
+      {% if sp %}
+        <td rowspan="{{ sp[1] }}" class="sum-l">{{ rep.summary[sp[0]][0] }}</td>
+        <td rowspan="{{ sp[1] }}" class="sum-v">{{ rep.summary[sp[0]][1] }}</td>
+      {% endif %}
+    </tr>
+  {% endfor %}
+  {% for i in range(rep.layout_rows - (rep.rows|length)) %}
+    {% set row_index = (rep.rows|length) + i %}
+    <tr>
+      {% for _ in range(15) %}<td></td>{% endfor %}
+      {% set sp = rep.sum_spans.get(row_index) %}
+      {% if sp %}
+        <td rowspan="{{ sp[1] }}" class="sum-l">{{ rep.summary[sp[0]][0] }}</td>
+        <td rowspan="{{ sp[1] }}" class="sum-v">{{ rep.summary[sp[0]][1] }}</td>
+      {% endif %}
+    </tr>
+  {% endfor %}
+  </tbody>
+  <tfoot><tr><td colspan="19"></td></tr></tfoot>
+</table>
+</div>
+{# ───────── الملخص أسفل الصفحة ───────── #}
+{% set rc = rep.recon %}
+<section class="sm" aria-labelledby="sm1-h-{{ report_index }}">
+  <h2 id="sm1-h-{{ report_index }}" class="sr-only">ملخص</h2>
+  {% if not rc.has_schedule %}
+  <div class="sm-alert warn" role="alert">{{ icon('shield-alert', 22) }}<div><strong>مفيش مواعيد رسمية ثابتة للموظف</strong><span>المطابقة غير متاحة لأن الساعات الرسمية = صفر.</span></div></div>
+  {% elif rc.ok %}
+  <div class="sm-alert ok" role="status">{{ icon('shield-check', 22) }}<div><strong>الحسابات سليمة — الناتج صفر</strong><span>ساعات الدوام الرسمية مطابقة للحضور والإجازات والأذونات المسجلة.</span></div></div>
+  {% else %}
+  <div class="sm-alert bad" role="alert">{{ icon('shield-alert', 22) }}
+    <div><strong>تنبيه: في حاجة غلط في الحسابات</strong></div>
+  </div>
+  {% endif %}
+
+  <div class="sm-scroll">
+  <table class="sm-t" aria-label="Summary 1">
+    <thead><tr>
+      <th>ساعات العمل الرسمية</th>
+      <th>ساعات العمل الفعلية</th>
+      <th>صافي التأخيرات والانصراف المبكر</th>
+      <th>التأخيرات والانصراف المبكر</th>
+      <th>أيام الغياب</th>
+      <th>فقدان البصمة</th>
+      <th>الإجازات والأذونات</th>
+      <th class="res">الناتج</th>
+    </tr></thead>
+    <tbody><tr>
+      <td class="off"><b>{{ hm(rc.official) or '0:00' }}</b><small>ثابتة حسب الجدول</small></td>
+      <td><b>{{ hm(rc.actual) or '0:00' }}</b></td>
+      <td><b>{{ hm(rc.net) or '0:00' }}</b></td>
+      <td><b>{{ hm(rc.late_early) or '0:00' }}</b></td>
+      <td><b>{{ hm(rc.absent_min) or '0:00' }}</b><small>{{ rc.absent_days }} يوم</small></td>
+      <td><b>{{ hm(rc.missing_min) or '0:00' }}</b><small>{{ '%g'|format(rc.missing_days) }} يوم ({{ rc.missing_count }} مرة)</small></td>
+      <td><b>{{ hm(rc.leave_min) or '0:00' }}</b><small>{{ rc.leave_days|num(2) }} يوم</small></td>
+      <td class="res {{ 'ok' if rc.ok else 'bad' }}"><b>{{ hs(rc.diff) if rc.diff else '0:00' }}</b></td>
+    </tr></tbody>
+  </table>
+  </div>
+</section>
+
+<section class="sm" aria-labelledby="sm2-h-{{ report_index }}">
+  <header class="sm-head"><h2 id="sm2-h">الإضافي والأذونات والإجازات</h2></header>
+  {% macro sx(title, ico, color, items, icons) %}
+  <div class="sx-card" style="--c:{{ color }}">
+    <div class="sx-title"><span class="sx-ti">{{ icon(ico, 18) }}</span><h3>{{ title }}</h3></div>
+    <div class="sx-scroll"><table class="sx-t" aria-label="{{ title }}">
+      <thead><tr>{% for l,v,u in items %}<th scope="col"><span class="sx-ico">{{ icon(icons[loop.index0], 17) }}</span><span>{{ l }}</span></th>{% endfor %}</tr></thead>
+      <tbody><tr>{% for l,v,u in items %}
+        <td class="{{ 'na' if v=='—' }}">{% if v=='—' %}<b>—</b><small>لا توجد بيانات</small>{% else %}<b>{{ v }}</b>{% if u %}<small>{{ u }}</small>{% endif %}{% endif %}</td>
+      {% endfor %}</tr></tbody>
+    </table></div>
+  </div>
+  {% endmacro %}
+  <div class="sm-pair">
+    {{ sx('الإضافي والأذونات', 'timer', '#1F6FB5', rep.s2a, ['clock','calendar','file','briefcase']) }}
+    {{ sx('الإجازات', 'briefcase', '#B5651F', rep.s2b, ['briefcase','hourglass','briefcase','cross']) }}
+  </div>
+</section>
+<p class="muted noprint rep-foot">
+  {{ rep.start }} → {{ rep.end }} · {{ rep.punches }} {{ t('att_punches') }}
+  {% if not demo %}· تصحيح التوقيت الشتوي: ساعة أقل في التقرير{% endif %}
+  · {{ rep.emp.schedule or '—' }} · {{ rep.emp.work_group or '—' }}
+</p>
+{% endfor %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,4 @@
+{% extends 'base.html' %}
+{% block h1 %}404{% endblock %}
+{% block sub %}{{ t('no_results') }}{% endblock %}
+{% block content %}<section class="panel"><a class="btn primary" href="{{ url_for('dashboard') }}">{{ t('dashboard') }}</a></section>{% endblock %}
